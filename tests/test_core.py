@@ -1,4 +1,6 @@
 """One test per milestone."""
+import math
+
 from app import core
 
 
@@ -20,3 +22,13 @@ def test_tokenizer_and_model_know_label_tokens():
         ids = tokenizer.encode(core.label_token(label))
         assert len(ids) == 1
     assert model.get_input_embeddings().num_embeddings == len(tokenizer)
+
+
+# Milestone 3: training runs and saves a model we can load back.
+
+
+def test_train_saves_a_loadable_model(tmp_path):
+    loss = core.train(str(tmp_path), base_model=TINY, epochs=1)
+    assert math.isfinite(loss)
+    tokenizer, model = core.load(str(tmp_path))
+    assert tokenizer.convert_tokens_to_ids("<venue_inquiry>") != tokenizer.unk_token_id

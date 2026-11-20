@@ -59,3 +59,31 @@ def build_model(base_model: str = BASE_MODEL):
     model = AutoModelForCausalLM.from_pretrained(base_model)
     model.resize_token_embeddings(len(tokenizer))
     return tokenizer, model
+
+
+# --- Milestone 3: fine-tune on the example requests with the Hugging Face Trainer.
+MODEL_DIR = "models/request-sorter"
+
+
+def train(output_dir: str = MODEL_DIR, base_model: str = BASE_MODEL, epochs: int = 15):
+    from datasets import Dataset
+    from transformers import DataCollatorForLanguageModeling, Trainer, TrainingArguments
+
+    tokenizer, model = build_model(base_model)
+    texts = [to_training_text(t, l) + tokenizer.eos_token for t, l in DATASET]
+    data = Dataset.from_dict({"text": texts}).map(
+        lambda b: tokenizer(b["text"], truncation=True, max_length=64), batched=True, remove_columns=["text"])
+    args = TrainingArguments(output_dir=output_dir, num_train_epochs=epochs, per_device_train_batch_size=8,
+                             learning_rate=5e-4, save_strategy="no", logging_steps=10, report_to=[])
+    trainer = Trainer(model=model, args=args, train_dataset=data,
+                      data_collator=DataCollatorForLanguageModeling(tokenizer, mlm=False))
+    result = trainer.train()
+    trainer.save_model(output_dir)
+    tokenizer.save_pretrained(output_dir)
+    return result.training_loss
+
+
+def load(model_dir: str = MODEL_DIR):
+    from transformers import AutoModelForCausalLM, AutoTokenizer
+
+    return AutoTokenizer.from_pretrained(model_dir), AutoModelForCausalLM.from_pretrained(model_dir).eval()
