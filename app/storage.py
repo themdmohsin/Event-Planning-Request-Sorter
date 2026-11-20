@@ -24,3 +24,14 @@ class Store:
 
     def all(self) -> dict:
         return dict(sorted(self._read().items()))
+
+
+def append_request(path: Path, request: str, label: str) -> None:
+    """Append a UTF-8 JSON record and preserve earlier classifications."""
+    from datetime import datetime, timezone
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    record = {"timestamp": datetime.now(timezone.utc).isoformat(),
+              "request": request, "label": label}
+    with path.open("a", encoding="utf-8") as log:
+        log.write(json.dumps(record, ensure_ascii=False) + "\n")

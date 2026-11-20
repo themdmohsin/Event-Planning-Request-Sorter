@@ -1,37 +1,53 @@
-"""Command-line entry point: `python -m app.cli --help`."""
+"""Sort one request or enter several interactively."""
 import argparse
+from pathlib import Path
 
-from app import core
+from app.storage import append_request
 
 
-def main(argv: list[str] | None = None) -> None:
-    parser = argparse.ArgumentParser(prog="event-planning-request-sorter", description="Event planners use this tool to automatically sort incoming client requests (e.g., \"venue inquiry\", \"catering request\") for efficient task delegation and response prioritization.")
+def main(argv=None):
+    parser = argparse.ArgumentParser(description="Classify event planning requests with GPT-2.")
     sub = parser.add_subparsers(dest="command", required=True)
-    sub.add_parser("hello", help="check that everything is wired up")
-    p = sub.add_parser("train", help="fine-tune GPT-2 on the example requests")
-    p.add_argument("--epochs", type=int, default=15)
-    p.add_argument("--model-dir", default=core.MODEL_DIR)
-    p = sub.add_parser("classify", help="classify a request (or type them one per line if none given)")
-    p.add_argument("text", nargs="?")
-    p.add_argument("--model-dir", default=core.MODEL_DIR)
+    sub.add_parser("hello", help="check the installation")
+    train = sub.add_parser("train", help="train a new adapter on the example requests")
+    train.add_argument("--epochs", type=int, default=15)
+    train.add_argument("--model-dir", default="checkpoint")
+    classify = sub.add_parser("classify", help="predict and save a request type")
+    classify.add_argument("text", nargs="?")
+    classify.add_argument("--model-dir", default="checkpoint")
+    classify.add_argument("--output", type=Path, default=Path("data/requests.jsonl"))
     args = parser.parse_args(argv)
-
     if args.command == "hello":
-        print("Event Planning Request Sorter is ready. Open README.md for your milestones.")
-    elif args.command == "train":
-        loss = core.train(args.model_dir, epochs=args.epochs)
-        print(f"Saved model to {args.model_dir} (training loss {loss:.3f})")
-    elif args.command == "classify":
+        print("Event Planning Request Sorter is ready.")
+        return
+    from app import core
+    try:
+        if args.command == "train":
+            loss = core.train(args.model_dir, epochs=args.epochs)
+            print(f"Saved model to {args.model_dir} (training loss {loss:.3f})")
+            return
+        if args.text is not None and not args.text.strip():
+            parser.error("Enter a non-empty request.")
         tokenizer, model = core.load(args.model_dir)
-        texts = [args.text] if args.text else _read_lines()
+        texts = [args.text] if args.text is not None else read_requests()
         for text in texts:
-            print(f"{core.classify(text, tokenizer, model)}: {text}")
+            label = core.classify(text, tokenizer, model)
+            append_request(args.output, text, label)
+            print(f"{label}: {text}")
+    except (OSError, ValueError) as error:
+        parser.exit(1, f"Sorter error: {error}\n")
 
 
-def _read_lines():
-    print("Type a request and press Enter (empty line to quit).")
-    while line := input("> ").strip():
-        yield line
+def read_requests():
+    print("Enter one request per line. Press Enter on a blank line to finish.")
+    while True:
+        try:
+            text = input("> ").strip()
+        except EOFError:
+            return
+        if not text:
+            return
+        yield text
 
 
 if __name__ == "__main__":
