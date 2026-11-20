@@ -1,50 +1,51 @@
+[![Built with askThili](https://msrit.ask.thili.ai/api/v1/public/projects/67wfp4237r/badge.svg)](https://msrit.ask.thili.ai/b/67wfp4237r)
+
 # Event Planning Request Sorter
 
-[![Built with askThili](https://ask.thili.ai/api/v1/public/projects/67wfp4237r/badge.svg)](https://ask.thili.ai/b/67wfp4237r)
+A laptop CLI that classifies a client request into one of six event-planning categories and appends it to a local review log. The trained GPT-2 adapter is included in `checkpoint/`.
 
-The Event Planning Request Sorter is a tool for event planners to automatically sort incoming client requests. It uses a fine-tuned GPT-2 model to classify requests like "venue inquiry" or "catering request", streamlining task delegation and response prioritization. This project demonstrates fine-tuning GPT-2 for text classification and building an inference pipeline.
+## Run on Windows
 
-## What you are building
+Open PowerShell in the folder containing this README. Use Python 3.12 and Git.
 
-**Goal.** You will build an Event Planning Request Sorter that automatically classifies incoming client requests to help event planners efficiently delegate tasks and prioritize responses.
-
-**Done when.** The project is done when your CLI tool can take a new event request, classify it into a predefined type using your fine-tuned GPT-2 model, and save the classified request to a file.
-
-## Milestones
-
-Tick these off as you go, and commit after each one.
-
-- [ ] **1. Define common event request types and create a small dataset of example requests.**  
-      Hint: Start by brainstorming common request categories and then write a few example sentences for each to form your dataset.
-- [ ] **2. Configure GPT-2 with an extended tokenizer and model for custom tokens.**  
-      Hint: Refer to the drill's section on extending the tokenizer and model for special tokens like `<venue_inquiry>`.
-- [ ] **3. Train the model on the example requests using the Hugging Face Trainer.**  
-      Hint: Use the `Trainer` class from Hugging Face, similar to how GPT-2 was fine-tuned in the drill.
-- [ ] **4. Build an interface (CLI) to input new requests and show their classification.**  
-      Hint: Create a simple command-line interface to take user input and display the model's prediction.
-- [ ] **5. Allow saving classified requests to a file for review.**  
-      Hint: Implement file I/O to append the classified request and its label to a text file.
-
-## Run it
-
-You need Python 3.12 and git.
-
-```bash
-python3.12 -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-cp .env.example .env        # then choose a model; see the comments inside
-python -m app.cli hello
-pytest
+```powershell
+py -3.12 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe -m app.cli hello
+.\.venv\Scripts\python.exe -m app.cli classify "Please supply a vegetarian buffet for dinner"
 ```
 
-Your work goes in `app/core.py` (one stub per milestone) and `tests/test_core.py`. The first tests pass already; they
-check the plumbing.
+Expected output: `catering_request: Please supply a vegetarian buffet for dinner`. The first classification downloads the public GPT-2 base weights (about 550 MB). Subsequent runs reuse the cache. No API key or hosted service is required. On macOS or Linux create the environment with `python3.12 -m venv .venv` and use `.venv/bin/python`.
 
-## Settings and secrets
+## Classify and review
 
-Model settings live in `.env`, which is ignored by git. **Never commit `.env` or paste a key into code.** If a key ever
-reaches GitHub, treat it as leaked and make a new one.
+Omit the request to enter several requests interactively. A blank line exits. Supply one main request per entry. The model always chooses one category.
 
-## Stretch ideas
+```powershell
+.\.venv\Scripts\python.exe -m app.cli classify
+.\.venv\Scripts\python.exe -m app.cli classify "Can we change the date?" --output review.jsonl
+Get-Content data/requests.jsonl
+```
 
-- (none)
+The default log is `data/requests.jsonl`. Each UTF-8 line contains the original request, predicted label and UTC timestamp. Read entries in arrival order to review and delegate them.
+
+| Label | Planner handles |
+|---|---|
+| venue_inquiry | Space, availability, capacity and access |
+| catering_request | Menus, drinks and dietary needs |
+| decor_request | Flowers, lighting and table settings |
+| entertainment_booking | Musicians, performers and activities |
+| budget_question | Quotes, deposits, discounts and invoices |
+| schedule_change | Rescheduling, delays and cancellations |
+
+## Training and tests
+
+`app/examples.py` contains 60 labeled training requests, ten per category. The tokenizer adds six special tokens such as `<venue_inquiry>` and the GPT-2 token embedding table is resized. The classifier pools the first four pretrained GPT-2 blocks over up to 96 input tokens. Hugging Face Trainer fits a residual adapter and six output vectors on the frozen features. The label with the highest score is saved. The compact checkpoint includes the trained parameters and label order.
+
+```powershell
+.\.venv\Scripts\python.exe -m app.cli train --epochs 15 --model-dir models/retrained
+.\.venv\Scripts\python.exe -m app.cli classify "Could we rent the ballroom?" --model-dir models/retrained
+.\.venv\Scripts\python.exe -m pytest -q
+```
+
+GitHub Actions runs pytest on pushes and pull requests using Python 3.12. Tests cover the dataset, special tokens, training, checkpoint loading, command-line predictions and append-only logging. Model tests download public weights on first use. Six unseen examples check the shipped checkpoint, one per category. This small check does not estimate accuracy on real client traffic.

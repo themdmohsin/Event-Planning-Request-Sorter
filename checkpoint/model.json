@@ -1,0 +1,19 @@
+{
+  "base_model": "gpt2",
+  "labels": [
+    "venue_inquiry",
+    "catering_request",
+    "decor_request",
+    "entertainment_booking",
+    "budget_question",
+    "schedule_change"
+  ],
+  "label_tokens": [
+    "<venue_inquiry>",
+    "<catering_request>",
+    "<decor_request>",
+    "<entertainment_booking>",
+    "<budget_question>",
+    "<schedule_change>"
+  ]
+}

@@ -41,6 +41,7 @@ def test_classify_and_cli(tmp_path, capsys):
     assert core.classify("Can we book the hall?", tokenizer, model) in core.LABELS
 
     from app.cli import main
-    main(["classify", "Can we book the hall?", "--model-dir", str(tmp_path)])
+    main(["classify", "Can we book the hall?", "--model-dir", str(tmp_path), "--output", str(tmp_path / "log.jsonl")])
     out = capsys.readouterr().out.strip().splitlines()[-1]
     assert any(out.startswith(label + ":") for label in core.LABELS)
+

@@ -1,6 +1,6 @@
-httpx
-pytest
-datasets
-transformers
-torch
-accelerate
+torch>=2.6,<3
+transformers==5.23.0
+accelerate==1.16.0
+safetensors>=0.5
+httpx==0.28.1
+pytest>=8,<10
