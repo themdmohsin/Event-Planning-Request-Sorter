@@ -32,3 +32,15 @@ def test_train_saves_a_loadable_model(tmp_path):
     assert math.isfinite(loss)
     tokenizer, model = core.load(str(tmp_path))
     assert tokenizer.convert_tokens_to_ids("<venue_inquiry>") != tokenizer.unk_token_id
+
+
+# Milestone 4: classify returns a known label and the CLI prints it.
+def test_classify_and_cli(tmp_path, capsys):
+    core.train(str(tmp_path), base_model=TINY, epochs=1)
+    tokenizer, model = core.load(str(tmp_path))
+    assert core.classify("Can we book the hall?", tokenizer, model) in core.LABELS
+
+    from app.cli import main
+    main(["classify", "Can we book the hall?", "--model-dir", str(tmp_path)])
+    out = capsys.readouterr().out.strip().splitlines()[-1]
+    assert any(out.startswith(label + ":") for label in core.LABELS)

@@ -67,16 +67,23 @@ MODEL_DIR = "models/request-sorter"
 
 def train(output_dir: str = MODEL_DIR, base_model: str = BASE_MODEL, epochs: int = 15):
     from datasets import Dataset
-    from transformers import DataCollatorForLanguageModeling, Trainer, TrainingArguments
+    from transformers import DataCollatorForSeq2Seq, Trainer, TrainingArguments
 
     tokenizer, model = build_model(base_model)
-    texts = [to_training_text(t, l) + tokenizer.eos_token for t, l in DATASET]
-    data = Dataset.from_dict({"text": texts}).map(
-        lambda b: tokenizer(b["text"], truncation=True, max_length=64), batched=True, remove_columns=["text"])
+    label_ids = set(tokenizer.convert_tokens_to_ids([label_token(l) for l in LABELS]))
+
+    def encode(row):
+        enc = tokenizer(to_training_text(row["text"], row["label"]), truncation=True, max_length=64)
+        # Only learn the label token: the request words are input, not something to predict.
+        enc["labels"] = [i if i in label_ids else -100 for i in enc["input_ids"]]
+        return enc
+
+    rows = {"text": [t for t, _ in DATASET], "label": [l for _, l in DATASET]}
+    data = Dataset.from_dict(rows).map(encode, remove_columns=["text", "label"])
     args = TrainingArguments(output_dir=output_dir, num_train_epochs=epochs, per_device_train_batch_size=8,
                              learning_rate=5e-4, save_strategy="no", logging_steps=10, report_to=[])
     trainer = Trainer(model=model, args=args, train_dataset=data,
-                      data_collator=DataCollatorForLanguageModeling(tokenizer, mlm=False))
+                      data_collator=DataCollatorForSeq2Seq(tokenizer))
     result = trainer.train()
     trainer.save_model(output_dir)
     tokenizer.save_pretrained(output_dir)
@@ -87,3 +94,16 @@ def load(model_dir: str = MODEL_DIR):
     from transformers import AutoModelForCausalLM, AutoTokenizer
 
     return AutoTokenizer.from_pretrained(model_dir), AutoModelForCausalLM.from_pretrained(model_dir).eval()
+
+
+# --- Milestone 4: classify a new request (used by the CLI).
+def classify(text: str, tokenizer, model) -> str:
+    """Pick the label token the model scores highest right after the prompt."""
+    import torch
+
+    prompt = to_training_text(text, LABELS[0]).rsplit(label_token(LABELS[0]), 1)[0]
+    ids = tokenizer(prompt, return_tensors="pt").input_ids
+    with torch.no_grad():
+        logits = model(ids).logits[0, -1]
+    label_ids = tokenizer.convert_tokens_to_ids([label_token(l) for l in LABELS])
+    return LABELS[int(logits[label_ids].argmax())]
