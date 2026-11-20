@@ -44,3 +44,18 @@ def label_token(label: str) -> str:
 
 def to_training_text(text: str, label: str) -> str:
     return f"Request: {text}\nType: {label_token(label)}"
+
+
+# --- Milestone 2: GPT-2 with an extended tokenizer and model for the label tokens.
+BASE_MODEL = "gpt2"
+
+
+def build_model(base_model: str = BASE_MODEL):
+    from transformers import AutoModelForCausalLM, AutoTokenizer
+
+    tokenizer = AutoTokenizer.from_pretrained(base_model)
+    tokenizer.add_special_tokens({"additional_special_tokens": [label_token(l) for l in LABELS]})
+    tokenizer.pad_token = tokenizer.eos_token  # GPT-2 has no pad token
+    model = AutoModelForCausalLM.from_pretrained(base_model)
+    model.resize_token_embeddings(len(tokenizer))
+    return tokenizer, model
